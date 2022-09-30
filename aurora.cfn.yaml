@@ -1,0 +1,110 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Demo EC2
+
+Parameters:
+  VpcId:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::VPC::Id>
+    Default: /demo/landing-zone/vpc/vpc-id
+  PrivateSubnet1Id:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Subnet::Id>
+    Default: /demo/landing-zone/vpc/private-subnet-1-id
+  PrivateSubnet2Id:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Subnet::Id>
+    Default: /demo/landing-zone/vpc/private-subnet-2-id
+  PrivateSubnet3Id:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Subnet::Id>
+    Default: /demo/landing-zone/vpc/private-subnet-3-id
+
+Resources:
+  MonitoringIAMRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service:
+                - "monitoring.rds.amazonaws.com"
+            Action:
+              - "sts:AssumeRole"
+      Path: "/"
+      ManagedPolicyArns:
+        - !Sub arn:${AWS::Partition}:iam::aws:policy/service-role/AmazonRDSEnhancedMonitoringRole
+
+  AuroraDB1:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      AutoMinorVersionUpgrade: true
+      DBClusterIdentifier: !Ref AuroraDBCluster
+      DBInstanceClass: db.t4g.medium
+      Engine: aurora-postgresql
+      DBParameterGroupName: default.aurora-postgresql14
+      PubliclyAccessible: false
+      MonitoringInterval: 1
+      MonitoringRoleArn: !GetAtt MonitoringIAMRole.Arn
+      EnablePerformanceInsights: true
+      Tags:
+        - Key: Name
+          Value: AuroraDB1
+  AuroraDB2:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      AutoMinorVersionUpgrade: true
+      DBClusterIdentifier: !Ref AuroraDBCluster
+      DBInstanceClass: db.t4g.medium
+      Engine: aurora-postgresql
+      DBParameterGroupName: default.aurora-postgresql14
+      PubliclyAccessible: false
+      MonitoringInterval: 1
+      MonitoringRoleArn: !GetAtt MonitoringIAMRole.Arn
+      EnablePerformanceInsights: true
+      Tags:
+        - Key: Name
+          Value: AuroraDB2
+  AuroraDBCluster:
+    Type: AWS::RDS::DBCluster
+    Properties:
+      BackupRetentionPeriod: 1
+      DBClusterParameterGroupName: default.aurora-postgresql14
+      DBSubnetGroupName: !Ref AuroraDBSubnetGroup
+      DatabaseName: democluster
+      Engine: aurora-postgresql
+      EngineVersion: "14.3"
+      EngineMode: provisioned
+      MasterUserPassword: testing123
+      MasterUsername: potgres
+      Tags:
+        - Key: Name
+          Value: auroradb-cluster
+      VpcSecurityGroupIds: 
+        - !Ref RDSSecurityGroup
+  AuroraDBSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: "Subnets available for the Amazon Aurora database instance"
+      SubnetIds:
+        - !Ref PrivateSubnet1Id
+        - !Ref PrivateSubnet2Id
+        - !Ref PrivateSubnet3Id
+
+  RDSSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: "Allow access to database port"
+      SecurityGroupIngress:
+        - CidrIp: 0.0.0.0/0
+          FromPort: 3452
+          IpProtocol: tcp
+          ToPort: 3452
+      VpcId: !Ref VpcId
+      Tags:
+        - Key: Name
+          Value: !Sub RDSSecurityGroup-${AWS::StackName}
+  RDSSecurityGroupIngress:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !GetAtt "RDSSecurityGroup.GroupId"
+      IpProtocol: "-1"
+      SourceSecurityGroupId: !Ref RDSSecurityGroup
+      Description: "Self Reference"

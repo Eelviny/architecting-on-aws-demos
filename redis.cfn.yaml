@@ -1,0 +1,61 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Demo VPC
+
+Parameters:
+  VpcId:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::VPC::Id>
+    Default: /demo/landing-zone/vpc/vpc-id
+  PrivateSubnet1Id:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Subnet::Id>
+    Default: /demo/landing-zone/vpc/private-subnet-1-id
+  PrivateSubnet2Id:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Subnet::Id>
+    Default: /demo/landing-zone/vpc/private-subnet-2-id
+  PrivateSubnet3Id:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Subnet::Id>
+    Default: /demo/landing-zone/vpc/private-subnet-3-id
+
+Resources:
+  CacheCluster:
+    Type: AWS::ElastiCache::CacheCluster
+    Properties:
+      ClusterName: demo-redis-cluster
+      AutoMinorVersionUpgrade: true
+      CacheNodeType: cache.t4g.micro
+      CacheSubnetGroupName: !Ref CacheSubnetGroup
+      Engine: redis
+      EngineVersion: "6.2"
+      NumCacheNodes: 1
+      Port: 6379
+      VpcSecurityGroupIds:
+        - !Ref CacheSecurityGroup
+
+  CacheSubnetGroup:
+    Type: AWS::ElastiCache::SubnetGroup
+    Properties:
+      Description: Private Subnet Group
+      SubnetIds:
+        - !Ref PrivateSubnet1Id
+        - !Ref PrivateSubnet2Id
+        - !Ref PrivateSubnet3Id
+
+  CacheSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: "Allow access to database port"
+      SecurityGroupIngress:
+        - CidrIp: 0.0.0.0/0
+          FromPort: 6379
+          IpProtocol: tcp
+          ToPort: 6379
+      VpcId: !Ref VpcId
+      Tags:
+        - Key: Name
+          Value: !Sub RDSSecurityGroup-${AWS::StackName}
+  CacheSecurityGroupIngress:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !GetAtt "CacheSecurityGroup.GroupId"
+      IpProtocol: "-1"
+      SourceSecurityGroupId: !Ref CacheSecurityGroup
+      Description: "Self Reference"

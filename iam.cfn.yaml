@@ -1,0 +1,100 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Demo IAM Resources
+
+Resources:
+  WorkloadPermissionsBoundary:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: workload-permissions-boundary
+      Description: Allow the principal to do everything except create more policies
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Sid: PermissionsBoundary
+            Effect: Allow
+            NotAction:
+              - iam:AttachRolePolicy
+              - iam:ChangePassword
+              - iam:CreateAccessKey
+              - iam:CreateAccountAlias
+              - iam:CreatePolicy
+              - iam:CreatePolicyVersion
+              - iam:CreateRole
+              - iam:CreateServiceSpecificCredential
+              - iam:DeleteAccessKey
+              - iam:DeleteAccountAlias
+              - iam:DeleteAccountPasswordPolicy
+              - iam:DeletePolicy
+              - iam:DeletePolicyVersion
+              - iam:DeleteRole
+              - iam:DeleteRolePermissionsBoundary
+              - iam:DeleteRolePolicy
+              - iam:DeleteServerCertificate
+              - iam:DeleteServiceSpecificCredential
+              - iam:DeleteSigningCertificate
+              - iam:DeleteSSHPublicKey
+              - iam:DetachRolePolicy
+              - iam:PutRolePermissionsBoundary
+              - iam:PutRolePolicy
+              - iam:ResetServiceSpecificCredential
+              - iam:SetDefaultPolicyVersion
+              - iam:UpdateAccessKey
+              - iam:UpdateAssumeRolePolicy
+              - iam:UpdateRole
+              - iam:UpdateLoginProfile
+              - iam:PassRole
+              - iam:UpdateRoleDescription
+              - iam:UpdateServerCertificate
+              - iam:UpdateServiceSpecificCredential
+              - iam:UpdateSigningCertificate
+              - iam:UpdateSSHPublicKey
+              - iam:UploadServerCertificate
+              - iam:UploadSigningCertificate
+              - iam:UploadSSHPublicKey
+              - iam:PutUserPermissionsBoundary
+              - iam:AddUserToGroup
+              - iam:AttachGroupPolicy
+              - iam:AttachUserPolicy
+              - iam:CreateGroup
+              - iam:CreateUser
+              - iam:DeleteGroup
+              - iam:DeleteGroupPolicy
+              - iam:DeleteUser
+              - iam:DeleteUserPolicy
+              - iam:DetachGroupPolicy
+              - iam:DetachUserPolicy
+              - iam:PutGroupPolicy
+              - iam:PutUserPolicy
+              - iam:RemoveUserFromGroup
+              - iam:UpdateGroup
+              - iam:UpdateUser
+            Resource:
+              - "*"
+
+  LockDownPermissionsBoundary:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: lockdown-permissions-boundary
+      Description: Only allow the principal to interact with certain services
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Sid: PermissionsBoundary
+            Effect: Allow
+            Action:
+              - s3:*
+              - glue:*
+              - athena:*
+              - es:*
+              - firehose:Put*
+              - kms:GenerateDataKey
+              - kms:Decrypt
+            Resource:
+              - "*"
+
+  DatabaseAdminGroup:
+    Type: AWS::IAM::Group
+    Properties:
+      GroupName: database-admin-group
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/job-function/DatabaseAdministrator

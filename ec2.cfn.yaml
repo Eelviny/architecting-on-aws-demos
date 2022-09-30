@@ -1,0 +1,115 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Demo EC2
+
+Parameters:
+  KeyPairName:
+    Type: String
+  AmiId:
+    Type: AWS::EC2::Image::Id
+  VpcId:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::VPC::Id>
+    Default: /demo/landing-zone/vpc/vpc-id
+  PublicSubnet1Id:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Subnet::Id>
+    Default: /demo/landing-zone/vpc/public-subnet-1-id
+  PublicSubnet2Id:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Subnet::Id>
+    Default: /demo/landing-zone/vpc/public-subnet-2-id
+  PublicSubnet3Id:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Subnet::Id>
+    Default: /demo/landing-zone/vpc/public-subnet-3-id
+  LaunchInstances:
+    Type: Number
+    Default: 0
+
+Resources:
+  Ec2WebHostSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: webhost-securitygroup
+      GroupDescription: EC2 website security group
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - Description: Allow inbound web traffic
+          FromPort: 80
+          ToPort: 80
+          IpProtocol: tcp
+          CidrIp: 0.0.0.0/0
+        - Description: Allow SSH access
+          FromPort: 22
+          ToPort: 22
+          IpProtocol: tcp
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: webhost-securitygroup
+
+  LaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateName: webhost-template
+      LaunchTemplateData:
+        EbsOptimized: true
+        ImageId: !Ref AmiId
+        InstanceType: t4g.micro
+        KeyName: !Ref KeyPairName
+        NetworkInterfaces:
+          - DeviceIndex: 0
+            SubnetId: !Ref PublicSubnet1Id
+            AssociatePublicIpAddress: true
+            Ipv6AddressCount: 1
+            DeleteOnTermination: true
+            Groups:
+              - !Ref Ec2WebHostSecurityGroup
+        BlockDeviceMappings:
+          - DeviceName: /dev/xvda
+            Ebs:
+              VolumeType: gp3
+              VolumeSize: 8
+              DeleteOnTermination: true
+              Iops: 3000
+              Throughput: 125
+        TagSpecifications:
+          - ResourceType: instance
+            Tags:
+              - Key: Name
+                Value: webhost-instance
+          - ResourceType: volume
+            Tags:
+              - Key: Name
+                Value: webhost-instance
+          - ResourceType: network-interface
+            Tags:
+              - Key: Name
+                Value: webhost-instance
+
+  AutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      AutoScalingGroupName: webhost-autoscalinggroup
+      VPCZoneIdentifier:
+        - !Ref PublicSubnet1Id
+        - !Ref PublicSubnet2Id
+        - !Ref PublicSubnet3Id
+      Cooldown: 30
+      MaxSize: 3
+      DesiredCapacity: !Ref LaunchInstances
+      MinSize: 0
+      MixedInstancesPolicy:
+        LaunchTemplate:
+          LaunchTemplateSpecification:
+            LaunchTemplateId: !Ref LaunchTemplate
+            Version: !GetAtt LaunchTemplate.LatestVersionNumber
+          Overrides:
+            - InstanceRequirements:
+                CpuManufacturers:
+                  - amazon-web-services
+                BurstablePerformance: required
+                MemoryMiB:
+                  Min: 512
+                  Max: 1024
+                VCpuCount:
+                  Min: 1
+                  Max: 2
+        InstancesDistribution:
+          OnDemandPercentageAboveBaseCapacity: 0

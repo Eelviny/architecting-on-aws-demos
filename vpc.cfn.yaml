@@ -1,0 +1,1013 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Demo VPC
+Parameters:
+  VpcCidr:
+    Type: String
+    Default: "10.10.0.0/21"
+  EnableNatGateways:
+    Type: String
+    Default: "true"
+  EnableEndpoints:
+    Type: String
+    Default: "false"
+
+Conditions:
+  IsEnableEndpoints: !Equals [!Ref EnableEndpoints, "true"]
+  IsEnableNatGateways: !Equals [!Ref EnableNatGateways, "true"]
+  IsUSEast1: !Equals [!Ref "AWS::Region", "us-east-1"]
+
+Resources:
+  Vpc:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !Ref VpcCidr
+      Tags:
+        - Key: Name
+          Value: demo-vpc
+        - Key: Description
+          Value: Main VPC for all resources in this account
+      EnableDnsSupport: True
+      EnableDnsHostnames: True
+
+  Ipv6CidrBlock:
+    Type: AWS::EC2::VPCCidrBlock
+    Properties:
+      VpcId: !Ref Vpc
+      AmazonProvidedIpv6CidrBlock: True
+
+  VpcDHCPOptions:
+    Type: AWS::EC2::DHCPOptions
+    Properties:
+      DomainName:
+        !If [IsUSEast1, ec2.internal, !Sub "${AWS::Region}.compute.internal"]
+      DomainNameServers:
+        - AmazonProvidedDNS
+      Tags:
+        - Key: Name
+          Value: demo-dhcp
+        - Key: Description
+          Value: DHCP options for demo-vpc
+  VpcDHCPOptionsAssociation:
+    Type: AWS::EC2::VPCDHCPOptionsAssociation
+    Properties:
+      DhcpOptionsId: !Ref VpcDHCPOptions
+      VpcId: !Ref Vpc
+
+  #
+  # Public subnets
+  #
+
+  PublicSubnet1:
+    Type: AWS::EC2::Subnet
+    DependsOn: Ipv6CidrBlock
+    Properties:
+      VpcId: !Ref Vpc
+      CidrBlock: !Select [0, !Cidr [!GetAtt Vpc.CidrBlock, 16, 7]] # /25
+      Ipv6CidrBlock:
+        !Select [0, !Cidr [!Select [0, !GetAtt Vpc.Ipv6CidrBlocks], 16, 64]]
+      AvailabilityZone: !Select [0, !GetAZs ""]
+      MapPublicIpOnLaunch: True
+      Tags:
+        - Key: Name
+          Value: demo-public-1
+        - Key: Description
+          Value: Public Subnet 1
+  PublicSubnet2:
+    Type: AWS::EC2::Subnet
+    DependsOn: Ipv6CidrBlock
+    Properties:
+      VpcId: !Ref Vpc
+      CidrBlock: !Select [1, !Cidr [!GetAtt Vpc.CidrBlock, 16, 7]] # /25
+      Ipv6CidrBlock:
+        !Select [1, !Cidr [!Select [0, !GetAtt Vpc.Ipv6CidrBlocks], 16, 64]]
+      AvailabilityZone: !Select [1, !GetAZs ""]
+      MapPublicIpOnLaunch: True
+      Tags:
+        - Key: Name
+          Value: demo-public-2
+        - Key: Description
+          Value: Public Subnet 2
+  PublicSubnet3:
+    Type: AWS::EC2::Subnet
+    DependsOn: Ipv6CidrBlock
+    Properties:
+      VpcId: !Ref Vpc
+      CidrBlock: !Select [2, !Cidr [!GetAtt Vpc.CidrBlock, 16, 7]] # /25
+      Ipv6CidrBlock:
+        !Select [2, !Cidr [!Select [0, !GetAtt Vpc.Ipv6CidrBlocks], 16, 64]]
+      AvailabilityZone: !Select [2, !GetAZs ""]
+      MapPublicIpOnLaunch: True
+      Tags:
+        - Key: Name
+          Value: demo-public-3
+        - Key: Description
+          Value: Public Subnet 3
+
+  #
+  # Private subnets
+  #
+
+  PrivateSubnet1:
+    Type: AWS::EC2::Subnet
+    DependsOn: Ipv6CidrBlock
+    Properties:
+      AssignIpv6AddressOnCreation: True
+      VpcId: !Ref Vpc
+      CidrBlock: !Select [1, !Cidr [!GetAtt Vpc.CidrBlock, 4, 9]] # /23
+      Ipv6CidrBlock:
+        !Select [3, !Cidr [!Select [0, !GetAtt Vpc.Ipv6CidrBlocks], 16, 64]]
+      AvailabilityZone: !Select [0, !GetAZs ""]
+      Tags:
+        - Key: Name
+          Value: demo-private-1
+        - Key: Description
+          Value: Private Subnet 1
+  PrivateSubnet2:
+    Type: AWS::EC2::Subnet
+    DependsOn: Ipv6CidrBlock
+    Properties:
+      AssignIpv6AddressOnCreation: True
+      VpcId: !Ref Vpc
+      CidrBlock: !Select [2, !Cidr [!GetAtt Vpc.CidrBlock, 4, 9]] # /23
+      Ipv6CidrBlock:
+        !Select [4, !Cidr [!Select [0, !GetAtt Vpc.Ipv6CidrBlocks], 16, 64]]
+      AvailabilityZone: !Select [1, !GetAZs ""]
+      Tags:
+        - Key: Name
+          Value: demo-private-2
+        - Key: Description
+          Value: Private Subnet 2
+  PrivateSubnet3:
+    Type: AWS::EC2::Subnet
+    DependsOn: Ipv6CidrBlock
+    Properties:
+      AssignIpv6AddressOnCreation: True
+      VpcId: !Ref Vpc
+      CidrBlock: !Select [3, !Cidr [!GetAtt Vpc.CidrBlock, 4, 9]] # /23
+      Ipv6CidrBlock:
+        !Select [5, !Cidr [!Select [0, !GetAtt Vpc.Ipv6CidrBlocks], 16, 64]]
+      AvailabilityZone: !Select [2, !GetAZs ""]
+      Tags:
+        - Key: Name
+          Value: demo-private-3
+        - Key: Description
+          Value: Private Subnet 3
+
+  #
+  # Transit Gateway subnets
+  #
+
+  TransitGatewaySubnet1:
+    Type: AWS::EC2::Subnet
+    DependsOn: Ipv6CidrBlock
+    Properties:
+      AssignIpv6AddressOnCreation: True
+      VpcId: !Ref Vpc
+      CidrBlock: !Select [24, !Cidr [!GetAtt Vpc.CidrBlock, 128, 4]] # /28
+      Ipv6CidrBlock:
+        !Select [6, !Cidr [!Select [0, !GetAtt Vpc.Ipv6CidrBlocks], 16, 64]]
+      AvailabilityZone: !Select [0, !GetAZs ""]
+      Tags:
+        - Key: Name
+          Value: demo-tgw-1
+        - Key: Description
+          Value: Transit Gateway Subnet 1
+  TransitGatewaySubnet2:
+    Type: AWS::EC2::Subnet
+    DependsOn: Ipv6CidrBlock
+    Properties:
+      AssignIpv6AddressOnCreation: True
+      VpcId: !Ref Vpc
+      CidrBlock: !Select [25, !Cidr [!GetAtt Vpc.CidrBlock, 128, 4]] # /28
+      Ipv6CidrBlock:
+        !Select [7, !Cidr [!Select [0, !GetAtt Vpc.Ipv6CidrBlocks], 16, 64]]
+      AvailabilityZone: !Select [1, !GetAZs ""]
+      Tags:
+        - Key: Name
+          Value: demo-tgw-2
+        - Key: Description
+          Value: Transit Gateway Subnet 2
+  TransitGatewaySubnet3:
+    Type: AWS::EC2::Subnet
+    DependsOn: Ipv6CidrBlock
+    Properties:
+      AssignIpv6AddressOnCreation: True
+      VpcId: !Ref Vpc
+      CidrBlock: !Select [26, !Cidr [!GetAtt Vpc.CidrBlock, 128, 4]] # /28
+      Ipv6CidrBlock:
+        !Select [8, !Cidr [!Select [0, !GetAtt Vpc.Ipv6CidrBlocks], 16, 64]]
+      AvailabilityZone: !Select [2, !GetAZs ""]
+      Tags:
+        - Key: Name
+          Value: demo-tgw-3
+        - Key: Description
+          Value: Transit Gateway Subnet 3
+
+  #
+  # VPC Endpoints
+  #
+
+  S3Endpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Condition: IsEnableEndpoints
+    Properties:
+      ServiceName: !Sub com.amazonaws.${AWS::Region}.s3
+      RouteTableIds:
+        - !Ref RouteTablePublicSubnet1
+        - !Ref RouteTablePrivateSubnet1
+        - !Ref RouteTablePrivateSubnet2
+        - !Ref RouteTablePrivateSubnet3
+      VpcEndpointType: Gateway
+      VpcId: !Ref Vpc
+
+  DynamoDbEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Condition: IsEnableEndpoints
+    Properties:
+      ServiceName: !Sub com.amazonaws.${AWS::Region}.dynamodb
+      RouteTableIds:
+        - !Ref RouteTablePublicSubnet1
+        - !Ref RouteTablePrivateSubnet1
+        - !Ref RouteTablePrivateSubnet2
+        - !Ref RouteTablePrivateSubnet3
+      VpcEndpointType: Gateway
+      VpcId: !Ref Vpc
+
+  #
+  # Internet Gateways
+  #
+
+  InternetGateway1:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: demo-igw-1
+        - Key: Description
+          Value: Internet Gateway for demo-vpc
+  AttachInternetGateway1:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref Vpc
+      InternetGatewayId: !Ref InternetGateway1
+  EgressOnlyInternetGatewayForIpv6:
+    Type: AWS::EC2::EgressOnlyInternetGateway
+    Properties:
+      VpcId: !Ref Vpc
+
+  #
+  # NAT Gateways
+  #
+
+  NatGatewayEip1:
+    Type: AWS::EC2::EIP
+    Condition: IsEnableNatGateways
+    DependsOn: RouteTablePrivateSubnet1
+    Properties:
+      Domain: vpc
+      Tags:
+        - Key: Name
+          Value: demo-nat-eip-1
+        - Key: Description
+          Value: Elastic IP for NAT Gateway 1
+  NatGatewayEip2:
+    Type: AWS::EC2::EIP
+    Condition: IsEnableNatGateways
+    DependsOn: RouteTablePrivateSubnet2
+    Properties:
+      Domain: vpc
+      Tags:
+        - Key: Name
+          Value: demo-nat-eip-2
+        - Key: Description
+          Value: Elastic IP for NAT Gateway 2
+  NatGatewayEip3:
+    Type: AWS::EC2::EIP
+    Condition: IsEnableNatGateways
+    DependsOn: RouteTablePrivateSubnet3
+    Properties:
+      Domain: vpc
+      Tags:
+        - Key: Name
+          Value: demo-nat-eip-3
+        - Key: Description
+          Value: Elastic IP for NAT Gateway 3
+
+  NatGateway1:
+    Type: AWS::EC2::NatGateway
+    Condition: IsEnableNatGateways
+    Properties:
+      AllocationId: !GetAtt NatGatewayEip1.AllocationId
+      SubnetId: !Ref PublicSubnet1
+      Tags:
+        - Key: Name
+          Value: demo-ngw-1
+        - Key: Description
+          Value: NAT Gateway for Private Subnet 1
+  NatGateway2:
+    Type: AWS::EC2::NatGateway
+    Condition: IsEnableNatGateways
+    Properties:
+      AllocationId: !GetAtt NatGatewayEip2.AllocationId
+      SubnetId: !Ref PublicSubnet2
+      Tags:
+        - Key: Name
+          Value: demo-ngw-2
+        - Key: Description
+          Value: NAT Gateway for Private Subnet 2
+  NatGateway3:
+    Type: AWS::EC2::NatGateway
+    Condition: IsEnableNatGateways
+    Properties:
+      AllocationId: !GetAtt NatGatewayEip3.AllocationId
+      SubnetId: !Ref PublicSubnet3
+      Tags:
+        - Key: Name
+          Value: demo-ngw-3
+        - Key: Description
+          Value: NAT Gateway for Private Subnet 3
+
+  #
+  # Route tables
+  #
+
+  RouteTablePublicSubnet1:
+    Type: AWS::EC2::RouteTable
+    DependsOn: AttachInternetGateway1
+    Properties:
+      VpcId: !Ref Vpc
+      Tags:
+        - Key: Name
+          Value: demo-public-1
+        - Key: Description
+          Value: Route Table for all Public Subnets
+
+  RouteTablePrivateSubnet1:
+    Type: AWS::EC2::RouteTable
+    DependsOn: AttachInternetGateway1
+    Properties:
+      VpcId: !Ref Vpc
+      Tags:
+        - Key: Name
+          Value: demo-private-1
+        - Key: Description
+          Value: Route Table for all Private Subnet 1
+  RouteTablePrivateSubnet2:
+    Type: AWS::EC2::RouteTable
+    DependsOn: AttachInternetGateway1
+    Properties:
+      VpcId: !Ref Vpc
+      Tags:
+        - Key: Name
+          Value: demo-private-2
+        - Key: Description
+          Value: Route Table for all Private Subnet 2
+  RouteTablePrivateSubnet3:
+    Type: AWS::EC2::RouteTable
+    DependsOn: AttachInternetGateway1
+    Properties:
+      VpcId: !Ref Vpc
+      Tags:
+        - Key: Name
+          Value: demo-private-3
+        - Key: Description
+          Value: Route Table for all Private Subnet 3
+  LinkRouteTablePublicSubnet1:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref RouteTablePublicSubnet1
+      SubnetId: !Ref PublicSubnet1
+  LinkRouteTablePublicSubnet2:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref RouteTablePublicSubnet1
+      SubnetId: !Ref PublicSubnet2
+  LinkRouteTablePublicSubnet3:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref RouteTablePublicSubnet1
+      SubnetId: !Ref PublicSubnet3
+
+  LinkRouteTablePrivateSubnet1:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref RouteTablePrivateSubnet1
+      SubnetId: !Ref PrivateSubnet1
+  LinkRouteTablePrivateSubnet2:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref RouteTablePrivateSubnet2
+      SubnetId: !Ref PrivateSubnet2
+  LinkRouteTablePrivateSubnet3:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref RouteTablePrivateSubnet3
+      SubnetId: !Ref PrivateSubnet3
+
+  LinkRouteTableTransitGatewaySubnet1:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref RouteTablePrivateSubnet1
+      SubnetId: !Ref TransitGatewaySubnet1
+  LinkRouteTableTransitGatewaySubnet2:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref RouteTablePrivateSubnet2
+      SubnetId: !Ref TransitGatewaySubnet2
+  LinkRouteTableTransitGatewaySubnet3:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref RouteTablePrivateSubnet3
+      SubnetId: !Ref TransitGatewaySubnet3
+
+  #
+  # Routes
+  #
+
+  InternetGatewayRoute1:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref RouteTablePublicSubnet1
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway1
+  InternetGatewayRoute1IPv6:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref RouteTablePublicSubnet1
+      DestinationIpv6CidrBlock: ::/0
+      GatewayId: !Ref InternetGateway1
+
+  NatGatewayRoutePrivateSubnet1:
+    Type: AWS::EC2::Route
+    Condition: IsEnableNatGateways
+    Properties:
+      RouteTableId: !Ref RouteTablePrivateSubnet1
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NatGateway1
+  EgressIpv6OnlyGatewayRoutePrivateSubnet1:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref RouteTablePrivateSubnet1
+      DestinationIpv6CidrBlock: ::/0
+      EgressOnlyInternetGatewayId: !Ref EgressOnlyInternetGatewayForIpv6
+
+  NatGatewayRoutePrivateSubnet2:
+    Type: AWS::EC2::Route
+    Condition: IsEnableNatGateways
+    Properties:
+      RouteTableId: !Ref RouteTablePrivateSubnet2
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NatGateway2
+  EgressIpv6OnlyGatewayRoutePrivateSubnet2:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationIpv6CidrBlock: ::/0
+      RouteTableId: !Ref RouteTablePrivateSubnet2
+      EgressOnlyInternetGatewayId: !Ref EgressOnlyInternetGatewayForIpv6
+
+  NatGatewayRoutePrivateSubnet3:
+    Type: AWS::EC2::Route
+    Condition: IsEnableNatGateways
+    Properties:
+      RouteTableId: !Ref RouteTablePrivateSubnet3
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NatGateway3
+  EgressIpv6OnlyGatewayRoutePrivateSubnet3:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationIpv6CidrBlock: ::/0
+      RouteTableId: !Ref RouteTablePrivateSubnet3
+      EgressOnlyInternetGatewayId: !Ref EgressOnlyInternetGatewayForIpv6
+
+  ElastiCacheSubnetGroup:
+    Type: AWS::ElastiCache::SubnetGroup
+    Properties:
+      Description: Demo default ElastiCache subnet group
+      SubnetIds:
+        - !Ref PrivateSubnet1
+        - !Ref PrivateSubnet2
+        - !Ref PrivateSubnet3
+      Tags:
+        - Key: Name
+          Value: demo-elasticache-subnet-group
+        - Key: Description
+          Value: ElastiCache Subnet group for demo-vpc
+
+  DBSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: Demo default DB subnet group
+      SubnetIds:
+        - !Ref PrivateSubnet1
+        - !Ref PrivateSubnet2
+        - !Ref PrivateSubnet3
+      Tags:
+        - Key: Name
+          Value: demo-rds-subnet-group
+        - Key: Description
+          Value: RDS Subnet group for demo-vpc
+
+  VpcFlowLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /demo/vpc/flow-logs/demo-vpc
+      RetentionInDays: 7
+
+  VpcFlowLogRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub aws-controltower-VpcFlowLogRole-${AWS::Region}
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - vpc-flow-logs.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName: AllowFlowLogging
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:DescribeLogGroups
+                  - logs:DescribeLogStreams
+                  - logs:PutLogEvents
+                Resource: "*"
+  VpcFlowLog:
+    Type: AWS::EC2::FlowLog
+    Properties:
+      DeliverLogsPermissionArn: !GetAtt VpcFlowLogRole.Arn
+      LogGroupName: /demo/vpc/flow-logs/demo-vpc
+      ResourceId: !Ref Vpc
+      ResourceType: VPC
+      TrafficType: ALL
+      Tags:
+        - Key: Name
+          Value: demo-flowlog
+        - Key: Description
+          Value: Flowlog to view in cloudwatch
+  VpcArchiveFlowLog:
+    Type: AWS::EC2::FlowLog
+    Properties:
+      LogDestinationType: s3
+      LogDestination: !Sub arn:${AWS::Partition}:s3:::aws-custom-vpc-flowlogs-997131105879-${AWS::Region}/o-vwdfk02y4w/
+      ResourceId: !Ref Vpc
+      ResourceType: VPC
+      TrafficType: ALL
+      Tags:
+        - Key: Name
+          Value: demo-flowlog-archive
+        - Key: Description
+          Value: Flowlog to store in Log archive account
+
+  ### OUTPUTS ###
+  VpcIdParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: /demo/landing-zone/vpc/vpc-id
+      Type: String
+      Value: !Ref Vpc
+      Description: VPC Id
+      Tags:
+        Name: demo-vpc-id
+        Description: VPC Id
+  NatGateway1IdParameter:
+    Type: AWS::SSM::Parameter
+    Condition: IsEnableNatGateways
+    Properties:
+      Name: /demo/landing-zone/vpc/nat-gateway-1-id
+      Type: String
+      Value: !Ref NatGateway1
+      Description: NAT Gateway 1 Id
+      Tags:
+        Name: demo-nat-gateway-1-id
+        Description: NAT Gateway 1 Id
+  NatGateway2IdParameter:
+    Type: AWS::SSM::Parameter
+    Condition: IsEnableNatGateways
+    Properties:
+      Name: /demo/landing-zone/vpc/nat-gateway-2-id
+      Type: String
+      Value: !Ref NatGateway2
+      Description: NAT Gateway 2 Id
+      Tags:
+        Name: demo-nat-gateway-2-id
+        Description: NAT Gateway 2 Id
+  NatGateway3IdParameter:
+    Type: AWS::SSM::Parameter
+    Condition: IsEnableNatGateways
+    Properties:
+      Name: /demo/landing-zone/vpc/nat-gateway-3-id
+      Type: String
+      Value: !Ref NatGateway3
+      Description: NAT Gateway 3 Id
+      Tags:
+        Name: demo-nat-gateway-3-id
+        Description: NAT Gateway 3 Id
+  InternetGatewayIdParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: /demo/landing-zone/vpc/internet-gateway-id
+      Type: String
+      Value: !Ref InternetGateway1
+      Description: Internet Gateway Id
+      Tags:
+        Name: demo-internet-gateway-id
+        Description: Internet Gateway Id
+  PublicSubnet1IdParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: /demo/landing-zone/vpc/public-subnet-1-id
+      Type: String
+      Value: !Ref PublicSubnet1
+      Description: Public Subnet 1 Id
+      Tags:
+        Name: demo-public-subnet-1-id
+        Description: Public Subnet 1 Id
+  PublicSubnet2IdParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: /demo/landing-zone/vpc/public-subnet-2-id
+      Type: String
+      Value: !Ref PublicSubnet2
+      Description: Public Subnet 2 Id
+      Tags:
+        Name: demo-public-subnet-2-id
+        Description: Public Subnet 2 Id
+  PublicSubnet3IdParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: /demo/landing-zone/vpc/public-subnet-3-id
+      Type: String
+      Value: !Ref PublicSubnet3
+      Description: Public Subnet 3 Id
+      Tags:
+        Name: demo-public-subnet-3-id
+        Description: Public Subnet 3 Id
+  PrivateSubnet1IdParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: /demo/landing-zone/vpc/private-subnet-1-id
+      Type: String
+      Value: !Ref PrivateSubnet1
+      Description: Private Subnet 1 Id
+      Tags:
+        Name: demo-private-subnet-1-id
+        Description: Private Subnet 1 Id
+  PrivateSubnet2IdParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: /demo/landing-zone/vpc/private-subnet-2-id
+      Type: String
+      Value: !Ref PrivateSubnet2
+      Description: Private Subnet 2 Id
+      Tags:
+        Name: demo-private-subnet-2-id
+        Description: Private Subnet 2 Id
+  PrivateSubnet3IdParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: /demo/landing-zone/vpc/private-subnet-3-id
+      Type: String
+      Value: !Ref PrivateSubnet3
+      Description: Private Subnet 3 Id
+      Tags:
+        Name: demo-private-subnet-3-id
+        Description: Private Subnet 3 Id
+  TransitGatewaySubnet1IdParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: /demo/landing-zone/vpc/tgw-subnet-1-id
+      Type: String
+      Value: !Ref TransitGatewaySubnet1
+      Description: Transit Gateway Subnet 1 Id
+      Tags:
+        Name: demo-tgw-subnet-1-id
+        Description: Transit Gateway Subnet 1 Id
+  TransitGatewaySubnet2IdParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: /demo/landing-zone/vpc/tgw-subnet-2-id
+      Type: String
+      Value: !Ref TransitGatewaySubnet2
+      Description: Transit Gateway 2 Id
+      Tags:
+        Name: demo-tgw-subnet-2-id
+        Description: Transit Gateway 2 Id
+  TransitGatewaySubnet3IdParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: /demo/landing-zone/vpc/tgw-subnet-3-id
+      Type: String
+      Value: !Ref TransitGatewaySubnet3
+      Description: Transit Gateway 3 Id
+      Tags:
+        Name: demo-tgw-subnet-3-id
+        Description: Transit Gateway 3 Id
+  RouteTablePublicSubnet1IdParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: /demo/landing-zone/vpc/route-table-public-subnet-1-id
+      Type: String
+      Value: !Ref RouteTablePublicSubnet1
+      Description: Route Table Public Subnet 1 Id
+      Tags:
+        Name: demo-route-table-public-subnet-1-id
+        Description: Route Table Public Subnet 1 Id
+  RouteTablePrivateSubnet1IdParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: /demo/landing-zone/vpc/route-table-private-subnet-1-id
+      Type: String
+      Value: !Ref RouteTablePrivateSubnet1
+      Description: Route Table Private Subnet 1 Id
+      Tags:
+        Name: demo-route-table-private-subnet-1-id
+        Description: Route Table Private Subnet 1 Id
+  RouteTablePrivateSubnet2IdParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: /demo/landing-zone/vpc/route-table-private-subnet-2-id
+      Type: String
+      Value: !Ref RouteTablePrivateSubnet2
+      Description: Route Table Private Subnet 2 Id
+      Tags:
+        Name: demo-route-table-private-subnet-2-id
+        Description: Route Table Private Subnet 2 Id
+  RouteTablePrivateSubnet3IdParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: /demo/landing-zone/vpc/route-table-private-subnet-3-id
+      Type: String
+      Value: !Ref RouteTablePrivateSubnet3
+      Description: Route Table Private Subnet 3 Id
+      Tags:
+        Name: demo-route-table-private-subnet-3-id
+        Description: Route Table Private Subnet 3 Id
+  NatGatewayEip1IpParameter:
+    Type: AWS::SSM::Parameter
+    Condition: IsEnableNatGateways
+    Properties:
+      Name: /demo/landing-zone/vpc/nat-gateway-1-eip
+      Type: String
+      Value: !Ref NatGatewayEip1
+      Description: NAT Gateway 1 EIP
+      Tags:
+        Name: demo-nat-gateway-1-eip
+        Description: NAT Gateway 1 EIP
+  NatGatewayEip2IpParameter:
+    Type: AWS::SSM::Parameter
+    Condition: IsEnableNatGateways
+    Properties:
+      Name: /demo/landing-zone/vpc/nat-gateway-2-eip
+      Type: String
+      Value: !Ref NatGatewayEip2
+      Description: NAT Gateway 2 EIP
+      Tags:
+        Name: demo-nat-gateway-2-eip
+        Description: NAT Gateway 2 EIP
+  NatGatewayEip3IpParameter:
+    Type: AWS::SSM::Parameter
+    Condition: IsEnableNatGateways
+    Properties:
+      Name: /demo/landing-zone/vpc/nat-gateway-3-eip
+      Type: String
+      Value: !Ref NatGatewayEip3
+      Description: NAT Gateway 3 EIP
+      Tags:
+        Name: demo-nat-gateway-3-eip
+        Description: NAT Gateway 3 EIP
+  ElastiCacheSubnetGroupIdParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: /demo/landing-zone/vpc/elasticache-subnet-group-name
+      Type: String
+      Value: !Ref ElastiCacheSubnetGroup
+      Description: ElastiCache Subnet Group Name
+      Tags:
+        Name: demo-elasticache-subnet-group-name
+        Description: ElastiCache Subnet Group Name
+  DBSubnetGroupIdParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: /demo/landing-zone/vpc/db-subnet-group-name
+      Type: String
+      Value: !Ref DBSubnetGroup
+      Description: Database Subnet Group Name
+      Tags:
+        Name: demo-db-subnet-group-name
+        Description: Database Subnet Group Name
+  VpcFlowLogsLogGroupArnParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: /demo/landing-zone/vpc/vpc-flow-logs-log-group-arn
+      Type: String
+      Value: !GetAtt VpcFlowLogGroup.Arn
+      Description: VPC Flow Logs CloudWatch Logs log group ARN
+      Tags:
+        Name: demo-vpc-flow-logs-log-group-arn
+        Description: VPC Flow Logs CloudWatch Logs log group ARN
+  PublicSubnet1CidrParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: /demo/landing-zone/vpc/public-subnet-1-cidr
+      Type: String
+      Value: !Select [0, !Cidr [!GetAtt Vpc.CidrBlock, 16, 7]] # /25
+      Description: Public Subnet 1 CIDR
+      Tags:
+        Name: demo-public-subnet-1-cidr
+        Description: Public Subnet 1 CIDR
+  PublicSubnet2CidrParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: /demo/landing-zone/vpc/public-subnet-2-cidr
+      Type: String
+      Value: !Select [1, !Cidr [!GetAtt Vpc.CidrBlock, 16, 7]] # /25
+      Description: Public Subnet 2 CIDR
+      Tags:
+        Name: demo-public-subnet-2-cidr
+        Description: Public Subnet 2 CIDR
+  PublicSubnet3CidrParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: /demo/landing-zone/vpc/public-subnet-3-cidr
+      Type: String
+      Value: !Select [2, !Cidr [!GetAtt Vpc.CidrBlock, 16, 7]] # /25
+      Description: Public Subnet 3 CIDR
+      Tags:
+        Name: demo-public-subnet-3-cidr
+        Description: Public Subnet 3 CIDR
+  PrivateSubnet1CidrParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: /demo/landing-zone/vpc/private-subnet-1-cidr
+      Type: String
+      Value: !Select [1, !Cidr [!GetAtt Vpc.CidrBlock, 4, 9]] # /23
+      Description: Private Subnet 1 CIDR
+      Tags:
+        Name: demo-private-subnet-1-cidr
+        Description: Private Subnet 1 CIDR
+  PrivateSubnet2CidrParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: /demo/landing-zone/vpc/private-subnet-2-cidr
+      Type: String
+      Value: !Select [2, !Cidr [!GetAtt Vpc.CidrBlock, 4, 9]] # /23
+      Description: Private Subnet 2 CIDR
+      Tags:
+        Name: demo-private-subnet-2-cidr
+        Description: Private Subnet 2 CIDR
+  PrivateSubnet3CidrParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: /demo/landing-zone/vpc/private-subnet-3-cidr
+      Type: String
+      Value: !Select [3, !Cidr [!GetAtt Vpc.CidrBlock, 4, 9]] # /23
+      Description: Private Subnet 3 CIDR
+      Tags:
+        Name: demo-private-subnet-3-cidr
+        Description: Private Subnet 3 CIDR
+  TransitGatewaySubnet1CidrParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: /demo/landing-zone/vpc/tgw-subnet-1-cidr
+      Type: String
+      Value: !Select [24, !Cidr [!GetAtt Vpc.CidrBlock, 128, 4]] # /28
+      Description: Transit Gateway Subnet 1 CIDR
+      Tags:
+        Name: demo-tgw-subnet-1-cidr
+        Description: Transit Gateway Subnet 1 CIDR
+  TransitGatewaySubnet2CidrParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: /demo/landing-zone/vpc/tgw-subnet-2-cidr
+      Type: String
+      Value: !Select [25, !Cidr [!GetAtt Vpc.CidrBlock, 128, 4]] # /28
+      Description: Transit Gateway Subnet 2 CIDR
+      Tags:
+        Name: demo-tgw-subnet-2-cidr
+        Description: Transit Gateway Subnet 2 CIDR
+  TransitGatewaySubnet3CidrParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: /demo/landing-zone/vpc/tgw-subnet-3-cidr
+      Type: String
+      Value: !Select [26, !Cidr [!GetAtt Vpc.CidrBlock, 128, 4]] # /28
+      Description: Transit Gateway Subnet 3 CIDR
+      Tags:
+        Name: demo-tgw-subnet-3-cidr
+        Description: Transit Gateway Subnet 3 CIDR
+  PublicSubnet1CidrV6Parameter:
+    Type: AWS::SSM::Parameter
+    DependsOn: Ipv6CidrBlock
+    Properties:
+      Name: /demo/landing-zone/vpc/public-subnet-1-cidr-v6
+      Type: String
+      Value:
+        !Select [0, !Cidr [!Select [0, !GetAtt Vpc.Ipv6CidrBlocks], 16, 64]]
+      Description: Public Subnet 1 CIDR IPv6
+      Tags:
+        Name: demo-public-subnet-1-cidr-v6
+        Description: Public Subnet 1 CIDR IPv6
+  PublicSubnet2CidrV6Parameter:
+    Type: AWS::SSM::Parameter
+    DependsOn: Ipv6CidrBlock
+    Properties:
+      Name: /demo/landing-zone/vpc/public-subnet-2-cidr-v6
+      Type: String
+      Value:
+        !Select [1, !Cidr [!Select [0, !GetAtt Vpc.Ipv6CidrBlocks], 16, 64]]
+      Description: Public Subnet 2 CIDR IPv6
+      Tags:
+        Name: demo-public-subnet-2-cidr-v6
+        Description: Public Subnet 2 CIDR IPv6
+  PublicSubnet3CidrV6Parameter:
+    Type: AWS::SSM::Parameter
+    DependsOn: Ipv6CidrBlock
+    Properties:
+      Name: /demo/landing-zone/vpc/public-subnet-3-cidr-v6
+      Type: String
+      Value:
+        !Select [2, !Cidr [!Select [0, !GetAtt Vpc.Ipv6CidrBlocks], 16, 64]]
+      Description: Public Subnet 3 CIDR IPv6
+      Tags:
+        Name: demo-public-subnet-3-cidr-v6
+        Description: Public Subnet 3 CIDR IPv6
+  PrivateSubnet1CidrV6Parameter:
+    Type: AWS::SSM::Parameter
+    DependsOn: Ipv6CidrBlock
+    Properties:
+      Name: /demo/landing-zone/vpc/private-subnet-1-cidr-v6
+      Type: String
+      Value:
+        !Select [3, !Cidr [!Select [0, !GetAtt Vpc.Ipv6CidrBlocks], 16, 64]]
+      Description: Private Subnet 1 CIDR IPv6
+      Tags:
+        Name: demo-private-subnet-1-cidr-v6
+        Description: Private Subnet 1 CIDR IPv6
+  PrivateSubnet2CidrV6Parameter:
+    Type: AWS::SSM::Parameter
+    DependsOn: Ipv6CidrBlock
+    Properties:
+      Name: /demo/landing-zone/vpc/private-subnet-2-cidr-v6
+      Type: String
+      Value:
+        !Select [4, !Cidr [!Select [0, !GetAtt Vpc.Ipv6CidrBlocks], 16, 64]]
+      Description: Private Subnet 2 CIDR IPv6
+      Tags:
+        Name: demo-private-subnet-2-cidr-v6
+        Description: Private Subnet 2 CIDR IPv6
+  PrivateSubnet3CidrV6Parameter:
+    Type: AWS::SSM::Parameter
+    DependsOn: Ipv6CidrBlock
+    Properties:
+      Name: /demo/landing-zone/vpc/private-subnet-3-cidr-v6
+      Type: String
+      Value:
+        !Select [5, !Cidr [!Select [0, !GetAtt Vpc.Ipv6CidrBlocks], 16, 64]]
+      Description: Private Subnet 3 CIDR IPv6
+      Tags:
+        Name: demo-private-subnet-3-cidr-v6
+        Description: Private Subnet 3 CIDR IPv6
+  TransitGatewaySubnet1CidrV6Parameter:
+    Type: AWS::SSM::Parameter
+    DependsOn: Ipv6CidrBlock
+    Properties:
+      Name: /demo/landing-zone/vpc/tgw-subnet-1-cidr-v6
+      Type: String
+      Value:
+        !Select [6, !Cidr [!Select [0, !GetAtt Vpc.Ipv6CidrBlocks], 16, 64]]
+      Description: Transit Gateway Subnet 1 CIDR IPv6
+      Tags:
+        Name: demo-tgw-subnet-1-cidr-v6
+        Description: Transit Gateway Subnet 1 CIDR IPv6
+  TransitGatewaySubnet2CidrV6Parameter:
+    Type: AWS::SSM::Parameter
+    DependsOn: Ipv6CidrBlock
+    Properties:
+      Name: /demo/landing-zone/vpc/tgw-subnet-2-cidr-v6
+      Type: String
+      Value:
+        !Select [7, !Cidr [!Select [0, !GetAtt Vpc.Ipv6CidrBlocks], 16, 64]]
+      Description: Transit Gateway Subnet 2 CIDR IPv6
+      Tags:
+        Name: demo-tgw-subnet-2-cidr-v6
+        Description: Transit Gateway Subnet 2 CIDR IPv6
+  TransitGatewaySubnet3CidrV6Parameter:
+    Type: AWS::SSM::Parameter
+    DependsOn: Ipv6CidrBlock
+    Properties:
+      Name: /demo/landing-zone/vpc/tgw-subnet-3-cidr-v6
+      Type: String
+      Value:
+        !Select [8, !Cidr [!Select [0, !GetAtt Vpc.Ipv6CidrBlocks], 16, 64]]
+      Description: Transit Gateway Subnet 3 CIDR IPv6
+      Tags:
+        Name: demo-tgw-subnet-3-cidr-v6
+        Description: Transit Gateway Subnet 3 CIDR IPv6

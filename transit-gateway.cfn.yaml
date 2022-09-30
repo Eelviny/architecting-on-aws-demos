@@ -1,0 +1,86 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Demo VPC Transit Gateway
+
+Resources:
+  TransitGateway:
+    Type: AWS::EC2::TransitGateway
+    Properties:
+      AmazonSideAsn: 64601
+      Description: Demo Transit Gateway
+      AutoAcceptSharedAttachments: enable
+      DefaultRouteTableAssociation: enable
+      DefaultRouteTablePropagation: enable
+      DnsSupport: enable
+      VpnEcmpSupport: enable
+      Tags:
+        - Key: Name
+          Value: lz-tgw
+        - Key: Description
+          Value: Transit Gateway for all accounts
+
+  CustomerGateway:
+    Type: AWS::EC2::CustomerGateway
+    Properties:
+      BgpAsn: 65026
+      IpAddress: 193.0.3.1
+      Type: ipsec.1
+      Tags:
+        - Key: Name
+          Value: lz-cgw
+        - Key: Description
+          Value: Customer Gateway for VPN
+
+  VPNConnection:
+    Type: AWS::EC2::VPNConnection
+    Properties:
+      CustomerGatewayId: !Ref CustomerGateway
+      StaticRoutesOnly: false
+      TransitGatewayId: !Ref TransitGateway
+      Type: ipsec.1
+      Tags:
+        - Key: Name
+          Value: lz-vpn
+        - Key: Description
+          Value: IPv4 VPN to on-prem
+  VPNConnectionStateAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: aws-controltower-VPNConnectionStateAlarm
+      AlarmDescription: Alarm if a VPN connection goes down
+      MetricName: TunnelState
+      Namespace: AWS/VPN
+      Statistic: Minimum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      TreatMissingData: breaching
+      ComparisonOperator: LessThanThreshold
+      Dimensions:
+        - Name: VpnId
+          Value: !Ref VPNConnection
+
+  VPNConnectionStateTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: vpn-connection-state-topic
+      KmsMasterKeyId: alias/aws/sns
+      DisplayName: AWS VPN Alerts
+      Tags:
+        - Key: Name
+          Value: lz-vpn-connection-state-topic
+        - Key: Description
+          Value: SNS topic to send emails to the 24/7 address
+  VPNConnectionStateTopicPolicy:
+    Type: AWS::SNS::TopicPolicy
+    Properties:
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: VPNConnectionStateNotification
+            Effect: Allow
+            Principal:
+              Service: events.amazonaws.com
+            Action: sns:Publish
+            Resource: !Ref VPNConnectionStateTopic
+      Topics:
+        - !Ref VPNConnectionStateTopic
