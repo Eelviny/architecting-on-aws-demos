@@ -58,7 +58,7 @@ Resources:
       DomainName: !Sub loadbalancer.${HostedZoneName}
       ValidationMethod: DNS
       DomainValidationOptions:
-        - DomainName: !Ref HostedZoneName
+        - DomainName: !Sub loadbalancer.${HostedZoneName}
           HostedZoneId: !Ref HostedZoneId
 
   LoadBalancerDnsRecord:
@@ -87,8 +87,8 @@ Resources:
       VpcId: !Ref VpcId
       SecurityGroupIngress:
         - Description: Allow inbound web traffic
-          FromPort: 80
-          ToPort: 80
+          FromPort: 443
+          ToPort: 443
           IpProtocol: tcp
           CidrIp: 0.0.0.0/0
       Tags:

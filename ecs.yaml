@@ -1,0 +1,104 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Demo ECS Cluster
+Parameters:
+  VpcId:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::VPC::Id>
+    Default: /demo/landing-zone/vpc/vpc-id
+  PrivateSubnet1Id:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Subnet::Id>
+    Default: /demo/landing-zone/vpc/private-subnet-1-id
+  PrivateSubnet2Id:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Subnet::Id>
+    Default: /demo/landing-zone/vpc/private-subnet-2-id
+  PrivateSubnet3Id:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Subnet::Id>
+    Default: /demo/landing-zone/vpc/private-subnet-3-id
+
+Resources:
+  ECSCluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: demo-cluster
+
+  TaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: demo-webserver
+      RequiresCompatibilities:
+        - FARGATE
+      ExecutionRoleArn: !GetAtt FargateExecutionRole.Arn
+      Cpu: "512"
+      Memory: "1024"
+      NetworkMode: awsvpc
+      ContainerDefinitions:
+        - Name: demo-webserver
+          Essential: true
+          Image: amazon/amazon-ecs-sample
+          EntryPoint:
+            - "/usr/sbin/apache2"
+            - "-D"
+            - "FOREGROUND"
+          MemoryReservation: 128
+          PortMappings:
+            - ContainerPort: 80
+              HostPort: 80
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: demo-webserver
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: default
+
+  Service:
+    Type: AWS::ECS::Service
+    Properties:
+      LaunchType: FARGATE
+      Cluster: !Ref ECSCluster
+      DesiredCount: 1
+      TaskDefinition: !Ref TaskDefinition
+      # LoadBalancers:
+      #   - ContainerName: demo-webserver
+      #     ContainerPort: 80
+      #     TargetGroupArn: !Ref TargetGroup
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: DISABLED
+          SecurityGroups:
+            - !Ref ServiceSecurityGroup
+          Subnets:
+            - !Ref PrivateSubnet1Id
+            - !Ref PrivateSubnet2Id
+            - !Ref PrivateSubnet3Id
+
+  FargateExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: demo-fargate-execution-role
+      Path: /
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ecs-tasks.amazonaws.com
+            Action:
+              - "sts:AssumeRole"
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+
+  ServiceSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security Group Abn Connector
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - Description: "public - ipv4"
+          IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+        - Description: "public - ipv4"
+          IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIpv6: ::0/0
