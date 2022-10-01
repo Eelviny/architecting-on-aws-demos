@@ -10,10 +10,14 @@ Parameters:
   EnableEndpoints:
     Type: String
     Default: "false"
+  EnableFlowLogs:
+    Type: String
+    Default: "false"
 
 Conditions:
-  IsEnableEndpoints: !Equals [!Ref EnableEndpoints, "true"]
   IsEnableNatGateways: !Equals [!Ref EnableNatGateways, "true"]
+  IsEnableEndpoints: !Equals [!Ref EnableEndpoints, "true"]
+  IsEnableFlowLogs: !Equals [!Ref EnableFlowLogs, "true"]
   IsUSEast1: !Equals [!Ref "AWS::Region", "us-east-1"]
 
 Resources:
@@ -479,44 +483,18 @@ Resources:
       RouteTableId: !Ref RouteTablePrivateSubnet3
       EgressOnlyInternetGatewayId: !Ref EgressOnlyInternetGatewayForIpv6
 
-  ElastiCacheSubnetGroup:
-    Type: AWS::ElastiCache::SubnetGroup
-    Properties:
-      Description: Demo default ElastiCache subnet group
-      SubnetIds:
-        - !Ref PrivateSubnet1
-        - !Ref PrivateSubnet2
-        - !Ref PrivateSubnet3
-      Tags:
-        - Key: Name
-          Value: demo-elasticache-subnet-group
-        - Key: Description
-          Value: ElastiCache Subnet group for demo-vpc
-
-  DBSubnetGroup:
-    Type: AWS::RDS::DBSubnetGroup
-    Properties:
-      DBSubnetGroupDescription: Demo default DB subnet group
-      SubnetIds:
-        - !Ref PrivateSubnet1
-        - !Ref PrivateSubnet2
-        - !Ref PrivateSubnet3
-      Tags:
-        - Key: Name
-          Value: demo-rds-subnet-group
-        - Key: Description
-          Value: RDS Subnet group for demo-vpc
-
   VpcFlowLogGroup:
     Type: AWS::Logs::LogGroup
+    Condition: IsEnableFlowLogs
     Properties:
       LogGroupName: /demo/vpc/flow-logs/demo-vpc
       RetentionInDays: 7
 
   VpcFlowLogRole:
     Type: AWS::IAM::Role
+    Condition: IsEnableFlowLogs
     Properties:
-      RoleName: !Sub aws-controltower-VpcFlowLogRole-${AWS::Region}
+      RoleName: !Sub demo-VpcFlowLogRole-${AWS::Region}
       AssumeRolePolicyDocument:
         Version: 2012-10-17
         Statement:
@@ -541,6 +519,7 @@ Resources:
                 Resource: "*"
   VpcFlowLog:
     Type: AWS::EC2::FlowLog
+    Condition: IsEnableFlowLogs
     Properties:
       DeliverLogsPermissionArn: !GetAtt VpcFlowLogRole.Arn
       LogGroupName: /demo/vpc/flow-logs/demo-vpc
@@ -552,19 +531,6 @@ Resources:
           Value: demo-flowlog
         - Key: Description
           Value: Flowlog to view in cloudwatch
-  VpcArchiveFlowLog:
-    Type: AWS::EC2::FlowLog
-    Properties:
-      LogDestinationType: s3
-      LogDestination: !Sub arn:${AWS::Partition}:s3:::aws-custom-vpc-flowlogs-997131105879-${AWS::Region}/o-vwdfk02y4w/
-      ResourceId: !Ref Vpc
-      ResourceType: VPC
-      TrafficType: ALL
-      Tags:
-        - Key: Name
-          Value: demo-flowlog-archive
-        - Key: Description
-          Value: Flowlog to store in Log archive account
 
   ### OUTPUTS ###
   VpcIdParameter:
@@ -783,28 +749,9 @@ Resources:
       Tags:
         Name: demo-nat-gateway-3-eip
         Description: NAT Gateway 3 EIP
-  ElastiCacheSubnetGroupIdParameter:
-    Type: AWS::SSM::Parameter
-    Properties:
-      Name: /demo/landing-zone/vpc/elasticache-subnet-group-name
-      Type: String
-      Value: !Ref ElastiCacheSubnetGroup
-      Description: ElastiCache Subnet Group Name
-      Tags:
-        Name: demo-elasticache-subnet-group-name
-        Description: ElastiCache Subnet Group Name
-  DBSubnetGroupIdParameter:
-    Type: AWS::SSM::Parameter
-    Properties:
-      Name: /demo/landing-zone/vpc/db-subnet-group-name
-      Type: String
-      Value: !Ref DBSubnetGroup
-      Description: Database Subnet Group Name
-      Tags:
-        Name: demo-db-subnet-group-name
-        Description: Database Subnet Group Name
   VpcFlowLogsLogGroupArnParameter:
     Type: AWS::SSM::Parameter
+    Condition: IsEnableFlowLogs
     Properties:
       Name: /demo/landing-zone/vpc/vpc-flow-logs-log-group-arn
       Type: String

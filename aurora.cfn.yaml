@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: 2010-09-09
-Description: Demo EC2
+Description: Demo Aurora Cluster
 
 Parameters:
   VpcId:

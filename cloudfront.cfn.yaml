@@ -1,0 +1,129 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Demo CloudFront + WAF
+
+Parameters:
+  TargetDnsName:
+    Type: String
+    Default: loadbalancer.aws-sandbox.eelviny.me
+  AllowlistedIPV4Addresses:
+    Type: CommaDelimitedList
+    Description: Add the IPv4 addresses that you want to allowlist (comma seperated)
+    Default: ""
+  AllowlistedIPV6Addresses:
+    Type: CommaDelimitedList
+    Description: Add the IPv6 addresses that you want to allowlist (comma seperated)
+    Default: ""
+
+Conditions:
+  AllowlistIPv4NotEmpty:
+    !Not [!Equals [!Join ["", !Ref AllowlistedIPV4Addresses], ""]]
+  AllowlistIPv6NotEmpty:
+    !Not [!Equals [!Join ["", !Ref AllowlistedIPV6Addresses], ""]]
+
+Resources:
+  CloudFrontDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Comment: Cloudfront Distribution pointing to ALB
+        Origins:
+          - DomainName: !Ref TargetDnsName
+            Id: loadbalancer
+            CustomOriginConfig:
+              HTTPSPort: 443
+              OriginProtocolPolicy: https-only
+              OriginKeepaliveTimeout: 60
+              OriginReadTimeout: 60
+              OriginSSLProtocols:
+                - TLSv1.2
+            OriginCustomHeaders:
+              - HeaderName: x-origin-identifier
+                HeaderValue: supersecretpassword
+        Enabled: true
+        HttpVersion: http3
+        DefaultCacheBehavior:
+          AllowedMethods:
+            - GET
+            - HEAD
+          Compress: true
+          DefaultTTL: 30
+          MaxTTL: 60
+          MinTTL: 30
+          TargetOriginId: loadbalancer
+          CachePolicyId: !Ref DistributionCachePolicy
+          ViewerProtocolPolicy: redirect-to-https
+        PriceClass: PriceClass_100
+        ViewerCertificate:
+          CloudFrontDefaultCertificate: true
+          MinimumProtocolVersion: TLSv1.2_2021
+        IPV6Enabled: true
+        WebACLId: !GetAtt WebACL.Arn
+
+  DistributionCachePolicy:
+    Type: AWS::CloudFront::CachePolicy
+    Properties:
+      CachePolicyConfig:
+        Name: Demo-Policy
+        DefaultTTL: 30
+        MaxTTL: 60
+        MinTTL: 30
+        ParametersInCacheKeyAndForwardedToOrigin:
+          EnableAcceptEncodingGzip: true
+          EnableAcceptEncodingBrotli: true
+          CookiesConfig:
+            CookieBehavior: none
+          HeadersConfig:
+            HeaderBehavior: none
+          QueryStringsConfig:
+            QueryStringBehavior: none
+
+  WebACL:
+    Type: AWS::WAFv2::WebACL
+    Properties:
+      Name: DemoWebACL
+      Scope: CLOUDFRONT
+      Description: WebACL for Demo CloudFront
+      DefaultAction:
+        Allow: {}
+      VisibilityConfig:
+        SampledRequestsEnabled: true
+        CloudWatchMetricsEnabled: true
+        MetricName: WebACLMetric
+      Rules:
+        - Name: Allowlist
+          Action:
+            Allow: {}
+          Priority: 10
+          Statement:
+            OrStatement:
+              Statements:
+                - IPSetReferenceStatement:
+                    Arn: !GetAtt AllowlistIPV4IPSet.Arn
+                - IPSetReferenceStatement:
+                    Arn: !GetAtt AllowlistIPV6IPSet.Arn
+          VisibilityConfig:
+            CloudWatchMetricsEnabled: true
+            MetricName: demo-waf-allowlist
+            SampledRequestsEnabled: true
+
+  AllowlistIPV4IPSet:
+    Type: AWS::WAFv2::IPSet
+    Properties:
+      Addresses: !If [AllowlistIPv4NotEmpty, !Ref AllowlistedIPV4Addresses, []]
+      IPAddressVersion: IPV4
+      Name: demo-waf-allowlist-ipv4
+      Scope: CLOUDFRONT
+      Tags:
+        - Key: ApplicationName
+          Value: Demo Landing Zone
+  AllowlistIPV6IPSet:
+    DependsOn: AllowlistIPV4IPSet
+    Type: AWS::WAFv2::IPSet
+    Properties:
+      Addresses: !If [AllowlistIPv6NotEmpty, !Ref AllowlistedIPV6Addresses, []]
+      IPAddressVersion: IPV6
+      Name: demo-waf-allowlist-ipv6
+      Scope: CLOUDFRONT
+      Tags:
+        - Key: ApplicationName
+          Value: Demo Landing Zone

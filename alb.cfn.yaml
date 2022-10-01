@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: 2010-09-09
-Description: Demo VPC
+Description: Demo Application Load Balancer
 
 Parameters:
   VpcId:
@@ -21,14 +21,32 @@ Parameters:
     Type: String
     Default: aws-sandbox.eelviny.me
 
+Mappings:
+  RegionMap:
+    eu-west-1:
+      ElbAccountId: "156460612806"
+    eu-central-1:
+      ElbAccountId: "054676820928"
+    us-east-1:
+      ElbAccountId: "127311923021"
+
 Resources:
   LoadBalancer:
     Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    DependsOn:
+      - LoadBalancerLogsS3BucketPolicy
     Properties:
       Name: demo-application-loadbalancer
       Type: application
       IpAddressType: dualstack
       Scheme: internet-facing
+      LoadBalancerAttributes:
+        - Key: access_logs.s3.enabled
+          Value: "true"
+        - Key: access_logs.s3.bucket
+          Value: !Ref LoadBalancerLogsS3Bucket
+        - Key: access_logs.s3.prefix
+          Value: demo-application-loadbalancer
       SecurityGroups:
         - !Ref LoadBalancerSecurityGroup
       SubnetMappings:
@@ -94,3 +112,49 @@ Resources:
       Tags:
         - Key: Name
           Value: loadbalancer-securitygroup
+
+  LoadBalancerLogsS3Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub demo-loadbalancer-logs-${AWS::AccountId}-${AWS::Region}
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - BucketKeyEnabled: True
+            ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: BucketOwnerEnforced
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: True
+        BlockPublicPolicy: True
+        IgnorePublicAcls: True
+        RestrictPublicBuckets: True
+      LifecycleConfiguration:
+        Rules:
+          - Id: RemoveOldLogs
+            Status: Enabled
+            ExpirationInDays: 30
+
+  LoadBalancerLogsS3BucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref LoadBalancerLogsS3Bucket
+      PolicyDocument:
+        Statement:
+          - Action: s3:*
+            Effect: Deny
+            Resource: !Sub ${LoadBalancerLogsS3Bucket.Arn}/*
+            Principal: "*"
+            Condition:
+              Bool:
+                aws:SecureTransport: false
+          - Action: s3:PutObject
+            Effect: Allow
+            Resource: !Sub ${LoadBalancerLogsS3Bucket.Arn}/demo-application-loadbalancer/AWSLogs/${AWS::AccountId}/*
+            Principal:
+              AWS: !Join
+                - ""
+                - - "arn:aws:iam::"
+                  - !FindInMap [RegionMap, !Ref AWS::Region, ElbAccountId]
+                  - :root

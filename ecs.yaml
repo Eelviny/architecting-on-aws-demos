@@ -4,15 +4,16 @@ Parameters:
   VpcId:
     Type: AWS::SSM::Parameter::Value<AWS::EC2::VPC::Id>
     Default: /demo/landing-zone/vpc/vpc-id
-  PrivateSubnet1Id:
+  # It's in a public subnet because sometimes the NAT gateways might be unavailable. Demo purposes only.
+  PublicSubnet1Id:
     Type: AWS::SSM::Parameter::Value<AWS::EC2::Subnet::Id>
-    Default: /demo/landing-zone/vpc/private-subnet-1-id
-  PrivateSubnet2Id:
+    Default: /demo/landing-zone/vpc/public-subnet-1-id
+  PublicSubnet2Id:
     Type: AWS::SSM::Parameter::Value<AWS::EC2::Subnet::Id>
-    Default: /demo/landing-zone/vpc/private-subnet-2-id
-  PrivateSubnet3Id:
+    Default: /demo/landing-zone/vpc/public-subnet-2-id
+  PublicSubnet3Id:
     Type: AWS::SSM::Parameter::Value<AWS::EC2::Subnet::Id>
-    Default: /demo/landing-zone/vpc/private-subnet-3-id
+    Default: /demo/landing-zone/vpc/public-subnet-3-id
 
 Resources:
   ECSCluster:
@@ -45,9 +46,15 @@ Resources:
           LogConfiguration:
             LogDriver: awslogs
             Options:
-              awslogs-group: demo-webserver
+              awslogs-group: !Ref LogGroup
               awslogs-region: !Ref AWS::Region
               awslogs-stream-prefix: default
+
+  LogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /ecs/demo-webserver
+      RetentionInDays: 7
 
   Service:
     Type: AWS::ECS::Service
@@ -62,13 +69,13 @@ Resources:
       #     TargetGroupArn: !Ref TargetGroup
       NetworkConfiguration:
         AwsvpcConfiguration:
-          AssignPublicIp: DISABLED
+          AssignPublicIp: ENABLED
           SecurityGroups:
             - !Ref ServiceSecurityGroup
           Subnets:
-            - !Ref PrivateSubnet1Id
-            - !Ref PrivateSubnet2Id
-            - !Ref PrivateSubnet3Id
+            - !Ref PublicSubnet1Id
+            - !Ref PublicSubnet2Id
+            - !Ref PublicSubnet3Id
 
   FargateExecutionRole:
     Type: AWS::IAM::Role

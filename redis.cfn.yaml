@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: 2010-09-09
-Description: Demo VPC
+Description: Demo Elasticache Redis Cluster
 
 Parameters:
   VpcId:
