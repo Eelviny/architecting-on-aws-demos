@@ -4,16 +4,15 @@ Parameters:
   VpcId:
     Type: AWS::SSM::Parameter::Value<AWS::EC2::VPC::Id>
     Default: /demo/landing-zone/vpc/vpc-id
-  # It's in a public subnet because sometimes the NAT gateways might be unavailable. Demo purposes only.
-  PublicSubnet1Id:
+  PrivateSubnet1Id:
     Type: AWS::SSM::Parameter::Value<AWS::EC2::Subnet::Id>
-    Default: /demo/landing-zone/vpc/public-subnet-1-id
-  PublicSubnet2Id:
+    Default: /demo/landing-zone/vpc/private-subnet-1-id
+  PrivateSubnet2Id:
     Type: AWS::SSM::Parameter::Value<AWS::EC2::Subnet::Id>
-    Default: /demo/landing-zone/vpc/public-subnet-2-id
-  PublicSubnet3Id:
+    Default: /demo/landing-zone/vpc/private-subnet-2-id
+  PrivateSubnet3Id:
     Type: AWS::SSM::Parameter::Value<AWS::EC2::Subnet::Id>
-    Default: /demo/landing-zone/vpc/public-subnet-3-id
+    Default: /demo/landing-zone/vpc/private-subnet-3-id
 
 Resources:
   ECSCluster:
@@ -73,9 +72,9 @@ Resources:
           SecurityGroups:
             - !Ref ServiceSecurityGroup
           Subnets:
-            - !Ref PublicSubnet1Id
-            - !Ref PublicSubnet2Id
-            - !Ref PublicSubnet3Id
+            - !Ref PrivateSubnet1Id
+            - !Ref PrivateSubnet2Id
+            - !Ref PrivateSubnet3Id
 
   FargateExecutionRole:
     Type: AWS::IAM::Role
