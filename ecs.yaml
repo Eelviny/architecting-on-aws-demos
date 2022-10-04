@@ -36,9 +36,9 @@ Resources:
           Essential: true
           Image: amazon/amazon-ecs-sample
           EntryPoint:
-            - "/usr/sbin/apache2"
-            - "-D"
-            - "FOREGROUND"
+            - /usr/sbin/apache2
+            - -D
+            - FOREGROUND
           MemoryReservation: 128
           PortMappings:
             - ContainerPort: 80
@@ -89,7 +89,7 @@ Resources:
               Service:
                 - ecs-tasks.amazonaws.com
             Action:
-              - "sts:AssumeRole"
+              - sts:AssumeRole
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
 
@@ -99,12 +99,12 @@ Resources:
       GroupDescription: Security Group Abn Connector
       VpcId: !Ref VpcId
       SecurityGroupIngress:
-        - Description: "public - ipv4"
+        - Description: public - ipv4
           IpProtocol: tcp
           FromPort: 80
           ToPort: 80
           CidrIp: 0.0.0.0/0
-        - Description: "public - ipv4"
+        - Description: public - ipv4
           IpProtocol: tcp
           FromPort: 80
           ToPort: 80

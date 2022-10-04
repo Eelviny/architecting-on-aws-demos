@@ -42,7 +42,7 @@ Resources:
   CacheSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: "Allow access to database port"
+      GroupDescription: Allow access to database port
       SecurityGroupIngress:
         - CidrIp: 0.0.0.0/0
           FromPort: 6379
@@ -55,7 +55,7 @@ Resources:
   CacheSecurityGroupIngress:
     Type: AWS::EC2::SecurityGroupIngress
     Properties:
-      GroupId: !GetAtt "CacheSecurityGroup.GroupId"
+      GroupId: !GetAtt CacheSecurityGroup.GroupId
       IpProtocol: "-1"
       SourceSecurityGroupId: !Ref CacheSecurityGroup
-      Description: "Self Reference"
+      Description: Self Reference
