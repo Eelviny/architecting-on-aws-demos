@@ -33,11 +33,7 @@ Resources:
       ContainerDefinitions:
         - Name: demo-webserver
           Essential: true
-          Image: amazon/amazon-ecs-sample
-          EntryPoint:
-            - /usr/sbin/apache2
-            - -D
-            - FOREGROUND
+          Image: !Sub ${EcrRepository.RepositoryUri}:latest
           MemoryReservation: 128
           PortMappings:
             - ContainerPort: 80
@@ -55,26 +51,26 @@ Resources:
       LogGroupName: /ecs/demo-webserver
       RetentionInDays: 7
 
-  Service:
-    Type: AWS::ECS::Service
-    Properties:
-      LaunchType: FARGATE
-      Cluster: !Ref ECSCluster
-      DesiredCount: 1
-      TaskDefinition: !Ref TaskDefinition
-      # LoadBalancers:
-      #   - ContainerName: demo-webserver
-      #     ContainerPort: 80
-      #     TargetGroupArn: !Ref TargetGroup
-      NetworkConfiguration:
-        AwsvpcConfiguration:
-          AssignPublicIp: ENABLED
-          SecurityGroups:
-            - !Ref ServiceSecurityGroup
-          Subnets:
-            - !Ref PrivateSubnet1Id
-            - !Ref PrivateSubnet2Id
-            - !Ref PrivateSubnet3Id
+  # Service:
+  #   Type: AWS::ECS::Service
+  #   Properties:
+  #     LaunchType: FARGATE
+  #     Cluster: !Ref ECSCluster
+  #     DesiredCount: 1
+  #     TaskDefinition: !Ref TaskDefinition
+  #     LoadBalancers:
+  #       - ContainerName: demo-webserver
+  #         ContainerPort: 80
+  #         TargetGroupArn: !Ref TargetGroup
+  #     NetworkConfiguration:
+  #       AwsvpcConfiguration:
+  #         AssignPublicIp: ENABLED
+  #         SecurityGroups:
+  #           - !Ref ServiceSecurityGroup
+  #         Subnets:
+  #           - !Ref PrivateSubnet1Id
+  #           - !Ref PrivateSubnet2Id
+  #           - !Ref PrivateSubnet3Id
 
   FargateExecutionRole:
     Type: AWS::IAM::Role
@@ -108,3 +104,8 @@ Resources:
           FromPort: 80
           ToPort: 80
           CidrIpv6: ::0/0
+
+  EcrRepository:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: demo-webserver
