@@ -64,11 +64,39 @@ Resources:
       Certificates:
         - CertificateArn: !Ref LoadBalancerCertificate
       DefaultActions:
+        - Type: forward
+          ForwardConfig:
+            TargetGroups:
+              - TargetGroupArn: !Ref LoadBalancerTargetGroup
+
+  LoadBalancerListenerRule:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      ListenerArn: !Ref LoadBalancerListener
+      Actions:
         - Type: fixed-response
           FixedResponseConfig:
             StatusCode: 200
             MessageBody: Hi there! This is a demo message from your favourite demo load balancer.
             ContentType: text/plain
+      Priority: 1
+      Conditions:
+        - Field: path-pattern
+          PathPatternConfig:
+            Values:
+              - /test
+
+  LoadBalancerTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: demo-target-group
+      TargetType: ip
+      VpcId: !Ref VpcId
+      Protocol: HTTP
+      Port: 80
+      TargetGroupAttributes:
+        - Key: deregistration_delay.timeout_seconds
+          Value: "10"
 
   LoadBalancerCertificate:
     Type: AWS::CertificateManager::Certificate
